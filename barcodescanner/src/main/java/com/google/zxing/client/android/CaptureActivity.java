@@ -16,14 +16,19 @@
 
 package com.google.zxing.client.android;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.pm.FeatureInfo;
 import android.content.pm.PackageManager;
+import android.hardware.Camera;
+import android.support.v4.content.LocalBroadcastManager;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.DecodeHintType;
 import com.google.zxing.Result;
 import com.google.zxing.ResultMetadataType;
 import com.google.zxing.ResultPoint;
 import com.google.zxing.client.android.camera.CameraManager;
+import com.google.zxing.client.android.camera.open.OpenCameraInterface;
 import com.google.zxing.client.android.clipboard.ClipboardInterface;
 import com.google.zxing.client.android.history.HistoryActivity;
 import com.google.zxing.client.android.history.HistoryItem;
@@ -70,6 +75,7 @@ import android.widget.Toast;
 import java.io.IOException;
 import java.text.DateFormat;
 import java.util.Collection;
+import java.util.Date;
 import java.util.EnumSet;
 import java.util.Map;
 
@@ -95,10 +101,10 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
   private static final int HISTORY_REQUEST_CODE = 0x0000bacc;
 
   private static final Collection<ResultMetadataType> DISPLAYABLE_METADATA_TYPES =
-      EnumSet.of(ResultMetadataType.ISSUE_NUMBER,
-                 ResultMetadataType.SUGGESTED_PRICE,
-                 ResultMetadataType.ERROR_CORRECTION_LEVEL,
-                 ResultMetadataType.POSSIBLE_COUNTRY);
+          EnumSet.of(ResultMetadataType.ISSUE_NUMBER,
+                  ResultMetadataType.SUGGESTED_PRICE,
+                  ResultMetadataType.ERROR_CORRECTION_LEVEL,
+                  ResultMetadataType.POSSIBLE_COUNTRY);
 
   private CameraManager cameraManager;
   private CaptureActivityHandler handler;
@@ -106,10 +112,12 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
   private ViewfinderView viewfinderView;
   private Button torchButton;
   private TextView statusView;
+  private Button flipButton;
   private View resultView;
   private Result lastResult;
   private boolean hasSurface;
   private boolean copyToClipboard;
+  private boolean beepOnScan;
   private IntentSource source;
   private String sourceUrl;
   private ScanFromWebPageManager scanFromWebPageManager;
@@ -132,7 +140,6 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
   CameraManager getCameraManager() {
     return cameraManager;
   }
-
   @Override
   public void onCreate(Bundle icicle) {
     super.onCreate(icicle);
@@ -150,9 +157,17 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
   }
 
   @Override
+  public void onConfigurationChanged(Configuration newConfig) {
+    super.onConfigurationChanged(newConfig);
+    // recreate is required for cases when no targetSdkVersion has been set in AndroidManifest.xml
+    // and the orientation has changed
+    recreate();
+  }
+
+  @Override
   protected void onResume() {
     super.onResume();
-    
+
     // historyManager must be initialized here to update the history preference
     historyManager = new HistoryManager(this);
     historyManager.trimHistory();
@@ -168,6 +183,7 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
 
     resultView = findViewById(R.id.result_view);
     statusView = (TextView) findViewById(R.id.status_view);
+    flipButton = (Button) findViewById(R.id.flip_button);
     torchButton = (Button) findViewById(R.id.torch_button);
 
     handler = null;
@@ -175,10 +191,20 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
 
     SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
 
-    if (prefs.getBoolean(PreferencesActivity.KEY_DISABLE_AUTO_ORIENTATION, true)) {
+    /*
+    if (prefs.getBoolean(PreferencesActivity.KEY_DISABLE_AUTO_ORIENTATION, false)) {
       setRequestedOrientation(getCurrentOrientation());
     } else {
       setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+    }
+    */
+
+    // defaults to SENSOR
+    final String scanOrientationLock = getIntent().getStringExtra(Intents.Scan.ORIENTATION_LOCK);
+    if ("landscape".equalsIgnoreCase(scanOrientationLock)) {
+      setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+    } else if ("portrait".equalsIgnoreCase(scanOrientationLock)) {
+      setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
     }
 
     resetStatusView();
@@ -192,8 +218,9 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
     Intent intent = getIntent();
 
     copyToClipboard = prefs.getBoolean(PreferencesActivity.KEY_COPY_TO_CLIPBOARD, true)
-        && (intent == null || intent.getBooleanExtra(Intents.Scan.SAVE_HISTORY, true));
+            && (intent == null || intent.getBooleanExtra(Intents.Scan.SAVE_HISTORY, true));
 
+    beepOnScan = (intent == null || intent.getBooleanExtra(Intents.Scan.BEEP_ON_SCAN, true));
     source = IntentSource.NONE;
     sourceUrl = null;
     scanFromWebPageManager = null;
@@ -226,15 +253,18 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
             cameraManager.setManualCameraId(cameraId);
           }
         }
-        
+
+        if (intent.getBooleanExtra(Intents.Scan.TORCH_ON, false)) {
+          cameraManager.setTorchInitiallyOn(true);
+        }
         String customPromptMessage = intent.getStringExtra(Intents.Scan.PROMPT_MESSAGE);
         if (customPromptMessage != null) {
           statusView.setText(customPromptMessage);
         }
 
       } else if (dataString != null &&
-                 dataString.contains("http://www.google") &&
-                 dataString.contains("/m/products/scan")) {
+              dataString.contains("http://www.google") &&
+              dataString.contains("/m/products/scan")) {
 
         // Scan only products and send the result to mobile Product Search.
         source = IntentSource.PRODUCT_SEARCH_LINK;
@@ -291,7 +321,7 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
       }
     }
   }
-  
+
   private static boolean isZXingURL(String dataString) {
     if (dataString == null) {
       return false;
@@ -358,31 +388,29 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
     return super.onKeyDown(keyCode, event);
   }
 
-  @Override
-  public boolean onCreateOptionsMenu(Menu menu) {
-    MenuInflater menuInflater = getMenuInflater();
-    menuInflater.inflate(R.menu.capture, menu);
-    return super.onCreateOptionsMenu(menu);
-  }
+// we don't want the help/share/settings/history menu options
+//  @Override
+//  public boolean onCreateOptionsMenu(Menu menu) {
+//    MenuInflater menuInflater = getMenuInflater();
+//    menuInflater.inflate(R.menu.capture, menu);
+//    return super.onCreateOptionsMenu(menu);
+//  }
 
   @Override
   public boolean onOptionsItemSelected(MenuItem item) {
     Intent intent = new Intent(Intent.ACTION_VIEW);
     intent.addFlags(Intents.FLAG_NEW_DOC);
     int itemId = item.getItemId();
-    if (itemId == R.id.menu_share){
-      intent.setClassName(this, ShareActivity.class.getName());
-      startActivity(intent);
-    } else if (itemId == R.id.menu_history) {
-        intent.setClassName(this, HistoryActivity.class.getName());
-        startActivityForResult(intent, HISTORY_REQUEST_CODE);
+    if (itemId == R.id.menu_history) {
+      intent.setClassName(this, HistoryActivity.class.getName());
+      startActivityForResult(intent, HISTORY_REQUEST_CODE);
     } else if (itemId == R.id.menu_settings) {
-        intent.setClassName(this, PreferencesActivity.class.getName());
-        startActivity(intent);
+      intent.setClassName(this, PreferencesActivity.class.getName());
+      startActivity(intent);
     }
     else if (itemId == R.id.menu_help) {
-        intent.setClassName(this, HelpActivity.class.getName());
-        startActivity(intent);
+      intent.setClassName(this, HelpActivity.class.getName());
+      startActivity(intent);
     } else {
       return super.onOptionsItemSelected(item);
     }
@@ -453,7 +481,9 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
     if (fromLiveScan) {
       historyManager.addHistoryItem(rawResult, resultHandler);
       // Then not from history, so beep/vibrate and we have an image to draw on
-      beepManager.playBeepSoundAndVibrate();
+      if (beepOnScan) {
+        beepManager.playBeepSoundAndVibrate();
+      }
       drawResultPoints(barcode, scaleFactor, rawResult);
     }
 
@@ -473,8 +503,8 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
         if (fromLiveScan && prefs.getBoolean(PreferencesActivity.KEY_BULK_MODE, false)) {
           Toast.makeText(getApplicationContext(),
-                         getResources().getString(R.string.msg_bulk_mode_scanned) + " (" + rawResult.getText() + ')',
-                         Toast.LENGTH_SHORT).show();
+                  getResources().getString(R.string.msg_bulk_mode_scanned) + " (" + rawResult.getText() + ')',
+                  Toast.LENGTH_SHORT).show();
           maybeSetClipboard(resultHandler);
           // Wait a moment or else it will scan the same barcode continuously about 3 times
           restartPreviewAfterDelay(BULK_MODE_SCAN_DELAY_MS);
@@ -502,8 +532,8 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
         paint.setStrokeWidth(4.0f);
         drawLine(canvas, paint, points[0], points[1], scaleFactor);
       } else if (points.length == 4 &&
-                 (rawResult.getBarcodeFormat() == BarcodeFormat.UPC_A ||
-                  rawResult.getBarcodeFormat() == BarcodeFormat.EAN_13)) {
+              (rawResult.getBarcodeFormat() == BarcodeFormat.UPC_A ||
+                      rawResult.getBarcodeFormat() == BarcodeFormat.EAN_13)) {
         // Hacky special case -- draw two lines, for the barcode and metadata
         drawLine(canvas, paint, points[0], points[1], scaleFactor);
         drawLine(canvas, paint, points[2], points[3], scaleFactor);
@@ -520,11 +550,11 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
 
   private static void drawLine(Canvas canvas, Paint paint, ResultPoint a, ResultPoint b, float scaleFactor) {
     if (a != null && b != null) {
-      canvas.drawLine(scaleFactor * a.getX(), 
-                      scaleFactor * a.getY(), 
-                      scaleFactor * b.getX(), 
-                      scaleFactor * b.getY(), 
-                      paint);
+      canvas.drawLine(scaleFactor * a.getX(),
+              scaleFactor * a.getY(),
+              scaleFactor * b.getX(),
+              scaleFactor * b.getY(),
+              paint);
     }
   }
 
@@ -547,7 +577,7 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
     ImageView barcodeImageView = (ImageView) findViewById(R.id.barcode_image_view);
     if (barcode == null) {
       barcodeImageView.setImageBitmap(BitmapFactory.decodeResource(getResources(),
-          R.drawable.launcher_icon));
+              R.drawable.launcher_icon));
     } else {
       barcodeImageView.setImageBitmap(barcode);
     }
@@ -593,11 +623,11 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
     supplementTextView.setText("");
     supplementTextView.setOnClickListener(null);
     if (PreferenceManager.getDefaultSharedPreferences(this).getBoolean(
-        PreferencesActivity.KEY_SUPPLEMENTAL, true)) {
+            PreferencesActivity.KEY_SUPPLEMENTAL, true)) {
       SupplementalInfoRetriever.maybeInvokeRetrieval(supplementTextView,
-                                                     resultHandler.getResult(),
-                                                     historyManager,
-                                                     this);
+              resultHandler.getResult(),
+              historyManager,
+              this);
     }
 
     int buttonCount = resultHandler.getButtonCount();
@@ -628,7 +658,7 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
       resultDurationMS = DEFAULT_INTENT_RESULT_DURATION_MS;
     } else {
       resultDurationMS = getIntent().getLongExtra(Intents.Scan.RESULT_DISPLAY_DURATION_MS,
-                                                  DEFAULT_INTENT_RESULT_DURATION_MS);
+              DEFAULT_INTENT_RESULT_DURATION_MS);
     }
 
     if (resultDurationMS > 0) {
@@ -657,7 +687,7 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
         if (metadata != null) {
           if (metadata.containsKey(ResultMetadataType.UPC_EAN_EXTENSION)) {
             intent.putExtra(Intents.Scan.RESULT_UPC_EAN_EXTENSION,
-                metadata.get(ResultMetadataType.UPC_EAN_EXTENSION).toString());
+                    metadata.get(ResultMetadataType.UPC_EAN_EXTENSION).toString());
           }
           Number orientation = (Number) metadata.get(ResultMetadataType.ORIENTATION);
           if (orientation != null) {
@@ -684,11 +714,11 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
         // Reformulate the URL which triggered us into a query, so that the request goes to the same
         // TLD as the scan URL.
         int end = sourceUrl.lastIndexOf("/scan");
-        String productReplyURL = sourceUrl.substring(0, end) + "?q=" + 
-            resultHandler.getDisplayContents() + "&source=zxing";
+        String productReplyURL = sourceUrl.substring(0, end) + "?q=" +
+                resultHandler.getDisplayContents() + "&source=zxing";
         sendReplyMessage(R.id.launch_product_query, productReplyURL, resultDurationMS);
         break;
-        
+
       case ZXING_LINK:
         if (scanFromWebPageManager != null && scanFromWebPageManager.isScanFromWebPage()) {
           String linkReplyURL = scanFromWebPageManager.buildReplyURL(rawResult, resultHandler);
@@ -704,7 +734,7 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
       ClipboardInterface.setText(resultHandler.getDisplayContents(), this);
     }
   }
-  
+
   private void sendReplyMessage(int id, Object arg, long delayMS) {
     if (handler != null) {
       Message message = Message.obtain(handler, id, arg);
@@ -760,10 +790,51 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
 
   private void resetStatusView() {
     resultView.setVisibility(View.GONE);
-    statusView.setText(R.string.msg_default_status);
+    // in case of continuous scan mode we don't want the message to be reset to the default if previously overridden
+    String customPromptMessage = getIntent().getStringExtra(Intents.Scan.PROMPT_MESSAGE);
+    if (customPromptMessage != null) {
+      statusView.setText(customPromptMessage);
+    } else {
+      statusView.setText(R.string.msg_default_status);
+    }
+
     statusView.setVisibility(View.VISIBLE);
     viewfinderView.setVisibility(View.VISIBLE);
     lastResult = null;
+    // in case the device has multiple camera's and we want to show the flip button: show the flip button :)
+    if (getIntent().getBooleanExtra(Intents.Scan.SHOW_FLIP_CAMERA_BUTTON, false)) {
+      if (Camera.getNumberOfCameras() > 1) {
+        flipButton.setVisibility(View.VISIBLE);
+        flipButton.setOnClickListener(new Button.OnClickListener() {
+          @Override
+          public void onClick(View v) {
+            final int reqCamId = getIntent().getIntExtra(Intents.Scan.CAMERA_ID, OpenCameraInterface.NO_REQUESTED_CAMERA);
+            getIntent().putExtra(Intents.Scan.CAMERA_ID, reqCamId == 1 ? 0 : 1);
+            getIntent().putExtra(Intents.Scan.SHOW_FLIP_CAMERA_BUTTON, true);
+            recreate();
+          }
+        });
+      }
+    }
+
+    if (getIntent().getBooleanExtra(Intents.Scan.SHOW_TORCH_BUTTON, false)) {
+      // only draw the button in case we're using the back camera
+      final int reqCamId = getIntent().getIntExtra(Intents.Scan.CAMERA_ID, OpenCameraInterface.NO_REQUESTED_CAMERA);
+      if (reqCamId != 1) {
+        for (final FeatureInfo feature : this.getPackageManager().getSystemAvailableFeatures()) {
+          if (PackageManager.FEATURE_CAMERA_FLASH.equalsIgnoreCase(feature.name)) {
+            torchButton.setVisibility(View.VISIBLE);
+            torchButton.setOnClickListener(new Button.OnClickListener() {
+              @Override
+              public void onClick(View v) {
+                cameraManager.setTorch(!cameraManager.isTorchOn());
+              }
+            });
+            break;
+          }
+        }
+      }
+    }
   }
 
   public void drawViewfinder() {

@@ -1,7 +1,7 @@
 ### Steps to build a new .aar
  * Clone this repo
  * Open it in Android Studio
- * Update any source files as needed (current version is: https://github.com/zxing/zxing/releases/tag/BS-4.7.6):
+ * Update any source files as needed (current version is: https://github.com/zxing/zxing/releases/tag/BS-4.7.8):
    - Copy all files from `core`
    - From the `android` folder grab the src/.../android folder and paste that to the appropriate package
    - Same for `android-core`
