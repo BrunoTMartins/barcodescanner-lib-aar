@@ -191,6 +191,11 @@ public final class Intents {
     public static final String TORCH_ON = "TORCH_ON";
 
     /**
+     * Set to true if we want to show the button to toggle the scan
+     */
+    public static final String SHOW_ENABLE_SCAN = "SHOW_ENABLE_SCAN";
+
+    /**
      * Set to false if you want to suppress the beep when a code is scanned
      */
     public static final String BEEP_ON_SCAN = "BEEP_ON_SCAN";

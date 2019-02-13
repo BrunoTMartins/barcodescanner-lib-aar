@@ -38,6 +38,7 @@
   <string name="button_share_clipboard">Clipboard</string>
   <string name="button_share_contact">Contact</string>
   <string name="button_show_map">Show map</string>
+  <string name="button_enable_scan">Enable scan</string>
   <string name="button_sms">Send SMS</string>
   <string name="button_web_search">Web search</string>
   <string name="button_wifi">Connect to Network</string>
@@ -140,4 +141,5 @@
   <string name="result_wifi">Found WLAN Configuration</string>
   <string name="sbc_name">Google Book Search</string>
   <string name="wifi_changing_network">Requesting connection to network\u2026</string>
+  <string name="button_disable_scan">Disable scan</string>
 </resources>
