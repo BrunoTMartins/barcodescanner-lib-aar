@@ -46,9 +46,10 @@ public final class PlanarYUVLuminanceSource extends LuminanceSource {
                                   boolean reverseHorizontal) {
     super(width, height);
 
-    if (left + width > dataWidth || top + height > dataHeight) {
-      throw new IllegalArgumentException("Crop rectangle does not fit within image data.");
-    }
+    //Removed aggressive check that causes a crash on screen rotation
+    //if (left + width > dataWidth || top + height > dataHeight) {
+      //throw new IllegalArgumentException("Crop rectangle does not fit within image data.");
+    //}
 
     this.yuvData = yuvData;
     this.dataWidth = dataWidth;

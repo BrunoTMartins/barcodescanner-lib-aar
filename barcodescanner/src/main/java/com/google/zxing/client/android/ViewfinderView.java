@@ -55,9 +55,11 @@ public final class ViewfinderView extends View {
   private final int resultColor;
   private final int laserColor;
   private final int resultPointColor;
+  private final int disabledColor;
   private int scannerAlpha;
   private List<ResultPoint> possibleResultPoints;
   private List<ResultPoint> lastPossibleResultPoints;
+  public boolean enabled = true;
 
   // This constructor is used when the class is built from an XML resource.
   public ViewfinderView(Context context, AttributeSet attrs) {
@@ -70,6 +72,7 @@ public final class ViewfinderView extends View {
     resultColor = resources.getColor(R.color.result_view);
     laserColor = resources.getColor(R.color.viewfinder_laser);
     resultPointColor = resources.getColor(R.color.possible_result_points);
+    disabledColor = resources.getColor(R.color.viewfinder_disabled);
     scannerAlpha = 0;
     possibleResultPoints = new ArrayList<>(5);
     lastPossibleResultPoints = null;
@@ -107,7 +110,12 @@ public final class ViewfinderView extends View {
     } else {
 
       // Draw a red "laser scanner" line through the middle to show decoding is active
-      paint.setColor(laserColor);
+      if(enabled){
+        paint.setColor(laserColor);
+      }else{
+        paint.setColor(disabledColor);
+      }
+
       paint.setAlpha(SCANNER_ALPHA[scannerAlpha]);
       scannerAlpha = (scannerAlpha + 1) % SCANNER_ALPHA.length;
       int middle = frame.height() / 2 + frame.top;
