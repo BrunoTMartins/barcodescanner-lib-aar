@@ -53,6 +53,7 @@ public final class CaptureActivityHandler extends Handler {
   private final DecodeThread decodeThread;
   private State state;
   private final CameraManager cameraManager;
+  public boolean enabled = true;
 
   private enum State {
     PREVIEW,
@@ -79,10 +80,14 @@ public final class CaptureActivityHandler extends Handler {
 
   @Override
   public void handleMessage(Message message) {
-    if (message.what == R.id.restart_preview) {
-      restartPreviewAndDecode();
-
-    } else if (message.what == R.id.decode_succeeded) {
+    if (!enabled) {
+      state = State.PREVIEW;
+      cameraManager.requestPreviewFrame(decodeThread.getHandler(), R.id.decode);
+    }
+    else if (message.what == R.id.restart_preview) {
+        restartPreviewAndDecode();
+    }
+    else if (message.what == R.id.decode_succeeded) {
       state = State.SUCCESS;
       Bundle bundle = message.getData();
       Bitmap barcode = null;

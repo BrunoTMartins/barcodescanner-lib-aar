@@ -107,6 +107,7 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
   private CaptureActivityHandler handler;
   private Result savedResultToShow;
   private ViewfinderView viewfinderView;
+  private Button enableButton;
   private TextView statusView;
   private Button flipButton;
   private Button torchButton;
@@ -193,6 +194,7 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
     statusView = (TextView) findViewById(R.id.status_view);
     flipButton = (Button) findViewById(R.id.flip_button);
     torchButton = (Button) findViewById(R.id.torch_button);
+    enableButton = (Button) findViewById(R.id.enable_scan);
 
     handler = null;
     lastResult = null;
@@ -782,6 +784,25 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
       if (handler == null) {
         handler = new CaptureActivityHandler(this, decodeFormats, decodeHints, characterSet, cameraManager);
       }
+
+      if (getIntent().getBooleanExtra(Intents.Scan.SHOW_ENABLE_SCAN, false)) {
+        enableButton.setVisibility(View.VISIBLE);
+        handler.enabled = false;
+        enableButton.setOnClickListener(new Button.OnClickListener() {
+          @Override
+          public void onClick(View v) {
+
+            if (handler.enabled) {
+              handler.enabled = false;
+              enableButton.setText(R.string.button_enable_scan);
+            } else {
+              handler.enabled = true;
+              enableButton.setText(R.string.button_disable_scan);
+            }
+          }
+        });
+      }
+
       decodeOrStoreSavedBitmap(null, null);
     } catch (IOException ioe) {
       Log.w(TAG, ioe);

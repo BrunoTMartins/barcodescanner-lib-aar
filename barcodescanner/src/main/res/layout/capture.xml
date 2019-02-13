@@ -217,4 +217,11 @@
           android:drawableStart="@drawable/toggle_torch"
           android:visibility="invisible"/>
 
+  <Button android:id="@+id/enable_scan"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_gravity="top|center_horizontal"
+      android:text="@string/button_enable_scan"
+      android:visibility="invisible"/>
+
 </merge>
