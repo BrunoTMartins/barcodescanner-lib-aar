@@ -788,15 +788,18 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
       if (getIntent().getBooleanExtra(Intents.Scan.SHOW_ENABLE_SCAN, false)) {
         enableButton.setVisibility(View.VISIBLE);
         handler.enabled = false;
+        viewfinderView.enabled = false;
         enableButton.setOnClickListener(new Button.OnClickListener() {
           @Override
           public void onClick(View v) {
 
             if (handler.enabled) {
               handler.enabled = false;
+              viewfinderView.enabled = false;
               enableButton.setText(R.string.button_enable_scan);
             } else {
               handler.enabled = true;
+              viewfinderView.enabled = true;
               enableButton.setText(R.string.button_disable_scan);
             }
           }

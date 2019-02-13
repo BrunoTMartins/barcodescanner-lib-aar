@@ -193,13 +193,7 @@
 
   </LinearLayout>
 
-  <TextView android:id="@+id/status_view"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|center_horizontal"
-            android:background="@color/transparent"
-            android:text="@string/msg_default_status"
-            android:textColor="@color/status_text"/>
+
 
   <Button android:id="@+id/flip_button"
           android:layout_width="wrap_content"
@@ -217,11 +211,26 @@
           android:drawableStart="@drawable/toggle_torch"
           android:visibility="invisible"/>
 
-  <Button android:id="@+id/enable_scan"
+  <LinearLayout android:id="@+id/reda"
+      android:orientation="vertical"
+      android:layout_width="fill_parent"
+      android:layout_height="wrap_content"
+      android:layout_gravity="bottom"
+      android:baselineAligned="false">
+  <Button
+      android:id="@+id/enable_scan"
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
-      android:layout_gravity="top|center_horizontal"
+      android:layout_gravity="bottom|center_horizontal"
       android:text="@string/button_enable_scan"
-      android:visibility="invisible"/>
+      android:visibility="invisible" />
+    <TextView android:id="@+id/status_view"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:background="@color/transparent"
+        android:text="@string/msg_default_status"
+        android:textColor="@color/status_text"/>
+  </LinearLayout>
 
 </merge>
