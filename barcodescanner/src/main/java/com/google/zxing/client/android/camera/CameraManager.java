@@ -324,7 +324,6 @@ public final class CameraManager {
    */
   public synchronized void setManualFramingRect(int width, int height) {
     if (initialized) {
-      /*
       Point screenResolution = configManager.getScreenResolution();
       if (width > screenResolution.x) {
         width = screenResolution.x;
@@ -335,8 +334,8 @@ public final class CameraManager {
       int leftOffset = (screenResolution.x - width) / 2;
       int topOffset = (screenResolution.y - height) / 2;
       framingRect = new Rect(leftOffset, topOffset, leftOffset + width, topOffset + height);
-      */
-      framingRect = getFramingRect();
+
+      //framingRect = getFramingRect();
 
       Log.d(TAG, "Calculated manual framing rect: " + framingRect);
       framingRectInPreview = null;
