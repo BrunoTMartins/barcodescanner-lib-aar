@@ -793,11 +793,11 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
           @Override
           public void onClick(View v) {
 
-            if (handler.enabled) {
+            if (handler != null && handler.enabled) {
               handler.enabled = false;
               viewfinderView.enabled = false;
               enableButton.setText(R.string.button_enable_scan);
-            } else {
+            } else if(handler != null){
               handler.enabled = true;
               viewfinderView.enabled = true;
               enableButton.setText(R.string.button_disable_scan);
